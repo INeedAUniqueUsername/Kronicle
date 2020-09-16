@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<!-- saved from url=(0058)http://ministry.kronosaur.com/program.hexm?id=1&status=all -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>Transcendence Dev · All</title>
+<body>
+	<div id="statusButtons">
+		<a onclick="filterStatus(0)">All</a>
+		<a onclick="filterStatus(1)">Created</a>
+		<a onclick="filterStatus(2)">Resolved</a>
+	</div>
+	<input type="text" id="searchBar">
+
+	<ul id="searchList">
+	</ul>
+
+
+	<template id="entryTemplate">
+		<div>
+			<div>
+				<pre style="display: inline">[%commentCount%] %resolved% %date% %requestedBy% %tags%</pre>
+				<div style="float: left; width:600px"><b>%title%</b></div>
+				<hr />
+			</div>
+		</div>
+	</template>
+
+	<template id="commentTemplate">
+		<div>
+			<b>%author% %date%</b>
+			<div>%body%</div>
+			<hr />
+		</div>
+	</template>
+
+	<script type="application/json" id="recordJson">
+		%recordJson%
+	</script>
+
+	<script type="text/javascript">
+		{
+			console.log('Starting up Kronicle');
+			let records = JSON.parse(document.getElementById("recordJson").innerText);
+			let list = document.getElementById("searchList");
+
+			let templateHTML = document.getElementById("entryTemplate").innerHTML;
+			let commentTemplate = document.getElementById("commentTemplate").innerHTML;
+
+            let expandInfo = {};
+
+			function expand(r, element) {
+				console.log("expand " + element);
+				if (expandInfo[element]) {
+
+					console.log("remove " + element.lastElementChild.innerHTML)
+					element.removeChild(element.lastElementChild);
+                    expandInfo[element] = false;
+				} else {
+                    let body = document.createElement("div");
+					body.innerHTML = r.body;
+					body.appendChild(document.createElement("hr"));
+
+					if (r.comments.length > 0) {
+                        let comments = document.createElement("div");
+                        for (let i = 0; i < r.comments.length; i++) {
+                            let c = r.comments[i];
+
+                            let comment = document.createElement("div");
+                            comment.innerHTML = commentTemplate
+                                .replace("%author%", c.author)
+                                .replace("%date%", c.date)
+                                .replace("%body%", c.body);
+                            comments.appendChild(comment);
+						}
+                        body.appendChild(document.createElement("hr"));
+						body.appendChild(comments);
+                        body.appendChild(document.createElement("hr"));
+                    }
+
+					element.appendChild(body);
+                    expandInfo[element] = true;
+					if (textFilter.length > 0) {
+						//When modifying an element via HTML, we have to delete this element and add in the new element
+                        let modified = document.createElement("div");
+						modified.innerHTML = element.innerHTML.replace(textFilter, `<b>${textFilter}</b>`);
+
+						let parent = element.parentElement;
+						parent.insertBefore(modified, element);
+						parent.removeChild(element);
+
+						modified.onclick = () => expand(r, modified);
+						expandInfo[modified] = true;
+					}
+				}
+			}
+
+			function display(r) {
+				let element = document.createElement("div");
+				element.innerHTML = templateHTML
+					.replace("%resolved%", `[${(r.resolved ? "Resolved" : "Created")}]`.padEnd(10))
+					.replace("%date%", `[${r.date.trim()}]`.padEnd(16))
+					.replace("%title%", r.title)
+					.replace("%requestedBy%", r.requestedBy)
+					.replace("%assignedTo%", r.assignedTo == "Unassigned" ? "" : r.assignedTo)
+					.replace("%tags%", r.tags.length == 0 ? "" : `[${r.tags.map(s => `[${s}]`).join(", ")}]`)
+					.replace("%commentCount%", r.comments.length);
+				list.appendChild(element);
+
+				let clicked = element.firstElementChild;
+				clicked.onclick = () => expand(r, element);
+				console.log(clicked);
+
+				return element;
+			}
+			var statusFilter = 0;
+			var textFilter = "";
+
+			function updateList() {
+				list.innerHTML = '';
+
+				let matching = records;
+				if (statusFilter > 0) {
+					switch (statusFilter) {
+						case 1:
+							matching = matching.filter(r => !r.resolved);
+							break;
+						case 2:
+							matching = matching.filter(r => r.resolved);
+							break;
+					}
+				}
+
+				if (textFilter.length > 0) {
+
+					for (let i = 0; i < matching.length; i++) {
+						let r = matching[i];
+						if (r.title.includes(textFilter)) {
+							display(r);
+						} else if (r.body.includes(textFilter) || r.comments.find(c => c.body.includes(textFilter))) {
+							let el = display(r);
+
+							expand(r, el);
+						}
+					}
+
+				} else {
+					for (let i = 0; i < matching.length; i++) {
+						let r = matching[i];
+						display(r);
+					}
+				}
+			}
+
+			let statusButtons = document.getElementById("statusButtons");
+			function filterStatus(status) {
+				let buttons = statusButtons.getElementsByTagName("a");
+				for (let i = 0; i < buttons.length; i++) {
+					let b = buttons[i];
+					b.innerHTML = b.innerHTML.replace("<b>", "").replace("</b>", "");
+				}
+
+				let b = buttons[status];
+				b.innerHTML = `<b>${b.innerHTML}</b>`;
+
+				statusFilter = status;
+				updateList();
+			}
+			updateList();
+
+			let searchBar = document.getElementById("searchBar");
+			searchBar.onchange = function () {
+				textFilter = searchBar.value;
+				updateList();
+			}
+		}
+	</script>
+</body></html>
